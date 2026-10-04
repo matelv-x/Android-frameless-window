@@ -4,47 +4,47 @@
   <img src="app/src/main/ic_launcher-playstore.png" width="240" alt="Stargate WebView icon">
 </p>
 
-Natywna aplikacja Android wyświetlająca interfejs Stargate/FAN113 w pełnoekranowym, bezramkowym `WebView`. Projekt jest przeznaczony przede wszystkim dla tabletów pracujących w orientacji poziomej.
+A native Android application that displays the Stargate/FAN113 interface in a full-screen, frameless `WebView`. The project is designed primarily for tablets used in landscape orientation.
 
-## Najważniejsze funkcje
+## Key features
 
-- pełnoekranowy widok bez paska aplikacji;
-- obsługa interfejsu DHD, dźwięku, gestów i wygaszacza;
-- skalowanie pozostawione stronie FAN113 bez dodatkowego `scale-to-fit` po stronie Android WebView;
-- usunięty systemowy niebieski efekt podświetlenia po dotknięciu elementów strony;
-- możliwość uruchamiania jako zwykła aplikacja lub ekran główny tabletu;
-- jeden APK przeznaczony dla tabletów różnych producentów.
+- Full-screen display without an app bar.
+- Support for the DHD interface, audio, gestures, and screen saver behavior.
+- Page scaling remains under the control of FAN113 without an additional Android WebView `scale-to-fit` pass.
+- The Android blue touch-highlight effect is disabled for page controls.
+- The app can run as a regular launcher app or as the tablet's Home app.
+- A single universal APK supports tablets from different manufacturers.
 
-## Wymagania
+## Requirements
 
-- Android 6.0 lub nowszy (`minSdk 23`);
-- połączenie z siecią dla treści ładowanych przez WebView;
-- orientacja pozioma.
+- Android 6.0 or newer (`minSdk 23`).
+- A network connection for content loaded by the WebView.
+- Landscape orientation.
 
-## Budowanie lokalne
+## Local build
 
 ```powershell
 .\gradlew.bat clean lintRelease assembleRelease
 ```
 
-Wynik znajduje się w:
+The generated APK is located at:
 
 ```text
 app/build/outputs/apk/release/app-release.apk
 ```
 
-Bez zmiennych podpisu lokalny build używa klucza debug. Oficjalne wydania z GitHuba są podpisywane stałym kluczem release przez GitHub Actions.
+Without the signing environment variables, a local build uses the Android debug key. Official GitHub builds are signed with the permanent release key through GitHub Actions.
 
-## Podpisywanie wydań
+## Release signing
 
-Zaszyfrowany plik klucza znajduje się w `signing/stargate-release.jks`. Hasła nie są przechowywane w kodzie ani historii Git — są zapisane jako GitHub Actions Secrets:
+The encrypted keystore is stored at `signing/stargate-release.jks`. Passwords are not stored in the source code or Git history. They are kept as GitHub Actions Secrets:
 
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-Workflow `.github/workflows/release.yml` buduje podpisany APK. Po wypchnięciu tagu w formacie `v*`, na przykład `v1.9-final`, tworzy również GitHub Release i dołącza APK.
+The `.github/workflows/release.yml` workflow builds a signed APK. When a `v*` tag such as `v1.9-final` is pushed, it also creates a GitHub Release and attaches the APK.
 
-## Instalacja
+## Installation
 
-Pobierz APK z sekcji **Releases**, skopiuj go na tablet i zezwól Androidowi na instalowanie aplikacji z używanego menedżera plików lub przeglądarki. Do aktualizacji aplikacji należy zawsze używać APK podpisanego tym samym kluczem release.
+Download the APK from **Releases**, copy it to the tablet, and allow Android to install apps from the file manager or browser being used. Future updates must always be signed with the same release key.
