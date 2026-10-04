@@ -16,6 +16,8 @@ Features:
   192.168.1.200/retro/dial.html
   stargate.local
   stargate.local/retro/dial.html
+  example.com
+  https://example.com/path
 - automatically adds only http:// if missing
 - saves address only after successful connection
 - long press anywhere = change address

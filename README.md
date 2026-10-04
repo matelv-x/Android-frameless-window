@@ -12,6 +12,7 @@ A native Android application that displays the Stargate/FAN113 interface in a fu
 - Support for the DHD interface, audio, gestures, and screen saver behavior.
 - Page scaling remains under the control of FAN113 without an additional Android WebView `scale-to-fit` pass.
 - The Android blue touch-highlight effect is disabled for page controls.
+- Accepts IPv4 addresses, `.local` hostnames, website domains, and complete HTTP/HTTPS URLs.
 - The app can run as a regular launcher app or as the tablet's Home app.
 - A single universal APK supports tablets from different manufacturers.
 

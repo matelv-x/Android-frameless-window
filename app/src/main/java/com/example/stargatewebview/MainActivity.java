@@ -48,6 +48,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.net.IDN;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -933,7 +934,7 @@ public class MainActivity extends Activity {
         input.setSingleLine(true);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL);
         input.setImeOptions(EditorInfo.IME_ACTION_DONE);
-        input.setHint("xxx.xxx.xxx.xxx or stargate.local/retro/dial.html");
+        input.setHint("IP, .local, or website URL");
         input.setText(getSavedAddress() != null ? getSavedAddress() : "");
         input.setSelectAllOnFocus(true);
         input.setFocusable(true);
@@ -962,7 +963,9 @@ public class MainActivity extends Activity {
                         "xxx.xxx.xxx.xxx\n" +
                         "xxx.xxx.xxx.xxx/retro/dial.html\n" +
                         "stargate.local\n" +
-                "stargate.local/retro/dial.html"
+                        "stargate.local/retro/dial.html\n" +
+                        "example.com\n" +
+                        "https://example.com/path"
         );
         info.setTextColor(Color.BLACK);
         info.setPadding(0, 0, 0, 30);
@@ -1140,10 +1143,11 @@ public class MainActivity extends Activity {
 
         String normalizedHost = host.toLowerCase(Locale.US);
         boolean isIpv4 = IPV4_PATTERN.matcher(normalizedHost).matches();
-        boolean isStargateLocal = "stargate.local".equals(normalizedHost);
+        boolean isLocalHost = normalizedHost.endsWith(".local") && isValidHostName(normalizedHost);
+        boolean isWebsiteDomain = !isLocalHost && isValidHostName(normalizedHost);
 
-        if (!isIpv4 && !isStargateLocal) {
-            Toast.makeText(this, "Use IPv4 or stargate.local", Toast.LENGTH_LONG).show();
+        if (!isIpv4 && !isLocalHost && !isWebsiteDomain) {
+            Toast.makeText(this, "Use IPv4, .local, or a valid website address", Toast.LENGTH_LONG).show();
             return null;
         }
 
@@ -1152,10 +1156,38 @@ public class MainActivity extends Activity {
 
     private String toLoadableUrl(String raw) {
         String trimmed = raw.trim();
-        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+        if (trimmed.regionMatches(true, 0, "http://", 0, 7)
+                || trimmed.regionMatches(true, 0, "https://", 0, 8)) {
             return trimmed;
         }
         return "http://" + trimmed;
+    }
+
+    private boolean isValidHostName(String host) {
+        final String asciiHost;
+        try {
+            asciiHost = IDN.toASCII(host, IDN.USE_STD3_ASCII_RULES).toLowerCase(Locale.US);
+        } catch (IllegalArgumentException error) {
+            return false;
+        }
+
+        if (asciiHost.length() == 0 || asciiHost.length() > 253 || !asciiHost.contains(".")) {
+            return false;
+        }
+
+        String[] labels = asciiHost.split("\\.", -1);
+        for (String label : labels) {
+            if (label.length() == 0 || label.length() > 63
+                    || label.startsWith("-") || label.endsWith("-")
+                    || !label.matches("[a-z0-9-]+")) {
+                return false;
+            }
+        }
+
+        String topLevelDomain = labels[labels.length - 1];
+        return "local".equals(topLevelDomain)
+                || topLevelDomain.matches("[a-z]{2,63}")
+                || topLevelDomain.matches("xn--[a-z0-9-]{2,59}");
     }
 
     private Integer validateScreensaverTimeoutMinutes(String input) {
