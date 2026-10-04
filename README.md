@@ -35,16 +35,7 @@ app/build/outputs/apk/release/app-release.apk
 
 Without the signing environment variables, a local build uses the Android debug key. Official GitHub builds are signed with the permanent release key through GitHub Actions.
 
-## Release signing
 
-The release keystore and all signing credentials are stored only as encrypted GitHub Actions Secrets. No private signing key or password is stored in the source code or Git history:
-
-- `ANDROID_KEYSTORE_BASE64`
-- `ANDROID_KEYSTORE_PASSWORD`
-- `ANDROID_KEY_ALIAS`
-- `ANDROID_KEY_PASSWORD`
-
-The `.github/workflows/release.yml` workflow restores the keystore only for the duration of the build and then builds a signed APK. When a `v*` tag such as `v1.9-final` is pushed, it also creates a GitHub Release and attaches the APK.
 
 ## Installation
 
