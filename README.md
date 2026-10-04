@@ -4,7 +4,7 @@
   <img src="app/src/main/ic_launcher-playstore.png" width="240" alt="Stargate WebView icon">
 </p>
 
-A native Android application that displays the Stargate/FAN113 interface in a full-screen, frameless `WebView`. The project is designed primarily for tablets used in landscape orientation.
+A native Android application that displays the web interface in a full-screen, frameless `WebView`. The project is designed primarily for tablets used in landscape orientation.
 
 ## Key features
 
