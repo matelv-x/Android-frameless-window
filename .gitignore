@@ -1,0 +1,31 @@
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Local Android SDK configuration
+local.properties
+
+# Gradle caches and build outputs
+.gradle/
+build/
+**/build/
+app/release/
+
+# Signing keys and local signing configuration
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Generated packages and diagnostics
+*.apk
+*.aab
+*-log.txt
+latest-build-test-check.txt
+
+# Local backups
+*.backup-*
+
+# Operating-system files
+.DS_Store
+Thumbs.db

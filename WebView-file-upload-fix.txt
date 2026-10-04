@@ -1,0 +1,22 @@
+Android WebView file upload fix
+
+Changed file:
+app/src/main/java/com/example/stargatewebview/MainActivity.java
+
+What changed:
+- Added ValueCallback<Uri[]> handling for WebView file input.
+- Added onShowFileChooser to WebChromeClient.
+- Opens Android image picker with ACTION_OPEN_DOCUMENT.
+- Accepts image/* files.
+- Returns selected Uri to WebView.
+- Handles cancel/back by returning null.
+- No new Android permissions added.
+
+Build:
+.\gradlew.bat :app:assembleDebug
+
+Output APK:
+app/build/outputs/apk/debug/app-debug.apk
+
+Test:
+Open Retro Visuals, press Choose File, select an image, confirm preview/background updates.
