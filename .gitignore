@@ -16,7 +16,6 @@ app/release/
 *.keystore
 keystore.properties
 signing.properties
-!signing/stargate-release.jks
 signing/*-credentials.*
 
 # Generated packages and diagnostics

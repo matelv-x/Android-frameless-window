@@ -37,13 +37,14 @@ Without the signing environment variables, a local build uses the Android debug 
 
 ## Release signing
 
-The encrypted keystore is stored at `signing/stargate-release.jks`. Passwords are not stored in the source code or Git history. They are kept as GitHub Actions Secrets:
+The release keystore and all signing credentials are stored only as encrypted GitHub Actions Secrets. No private signing key or password is stored in the source code or Git history:
 
+- `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-The `.github/workflows/release.yml` workflow builds a signed APK. When a `v*` tag such as `v1.9-final` is pushed, it also creates a GitHub Release and attaches the APK.
+The `.github/workflows/release.yml` workflow restores the keystore only for the duration of the build and then builds a signed APK. When a `v*` tag such as `v1.9-final` is pushed, it also creates a GitHub Release and attaches the APK.
 
 ## Installation
 
