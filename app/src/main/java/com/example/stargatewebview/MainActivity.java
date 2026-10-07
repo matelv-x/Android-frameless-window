@@ -44,6 +44,8 @@ import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -60,6 +62,9 @@ public class MainActivity extends Activity {
     private static final String PREFS_NAME = "stargate_prefs";
     private static final String KEY_ADDRESS = "saved_address";
     private static final String KEY_SCREENSAVER_TIMEOUT_MINUTES = "screensaver_timeout_minutes";
+    private static final String KEY_FIT_MODE = "fit_mode";
+    private static final String FIT_MODE_WIDTH = "fit_width";
+    private static final String FIT_MODE_ENTIRE_PAGE = "fit_entire_page";
 
     private static final int DEFAULT_SCREENSAVER_TIMEOUT_MINUTES = 10;
     private static final int MIN_SCREENSAVER_TIMEOUT_MINUTES = 1;
@@ -75,7 +80,7 @@ public class MainActivity extends Activity {
     );
 
     private FrameLayout rootLayout;
-    private WebView webView;
+    private FitToWindow webView;
     private LinearLayout errorLayout;
     private View screensaverOverlay;
     private TextView errorText;
@@ -111,7 +116,7 @@ public class MainActivity extends Activity {
         rootLayout = new FrameLayout(this);
         rootLayout.setBackgroundColor(Color.BLACK);
 
-        webView = new WebView(this);
+        webView = new FitToWindow(this);
         progressBar = new ProgressBar(this);
         errorLayout = createErrorLayout();
         screensaverOverlay = createScreensaverOverlay();
@@ -141,6 +146,7 @@ public class MainActivity extends Activity {
         setContentView(rootLayout);
 
         setupWebView();
+        webView.setFitMode(getSavedFitMode());
         setupGestures();
         setupRetryButton();
 
@@ -170,6 +176,9 @@ public class MainActivity extends Activity {
         applyScreenWakeState();
         resetScreensaverTimer();
         hideSystemBars();
+        if (!webFullscreenActive && fullscreenView == null) {
+            webView.scheduleFit();
+        }
     }
 
     @Override
@@ -264,6 +273,10 @@ public class MainActivity extends Activity {
     private void enterWebFullscreenMode() {
         webFullscreenActive = true;
 
+        if (webView != null) {
+            webView.suspendFitting();
+        }
+
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
         getWindow().getDecorView().setSystemUiVisibility(
@@ -303,6 +316,9 @@ public class MainActivity extends Activity {
                     "(function(){try{if(window.__androidFullscreenExit){window.__androidFullscreenExit();}}catch(e){}})();",
                     null
             );
+            if (fullscreenView == null) {
+                webView.resumeFitting();
+            }
         }
     }
 
@@ -626,13 +642,14 @@ public class MainActivity extends Activity {
         settings.setJavaScriptCanOpenWindowsAutomatically(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        // FAN113 already owns responsive scaling through its viewport and scene
-        // layout. Android overview mode would add a second scale-to-fit pass.
+        // Fitting is handled explicitly by FitToWindow. Overview mode would add
+        // a second, competing scale-to-fit pass.
         settings.setLoadWithOverviewMode(false);
         settings.setUseWideViewPort(true);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
+        webView.setInitialScale(100);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
@@ -645,6 +662,10 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                if (fullscreenView == null) {
+                    webView.resumeFitting();
+                }
+                webView.cancelPendingFit();
                 mainFrameFailed = false;
                 webFullscreenActive = false;
                 setGateActiveState(false, false);
@@ -674,6 +695,7 @@ public class MainActivity extends Activity {
                     lastUrl = url;
                     errorLayout.setVisibility(View.GONE);
                     webView.setVisibility(View.VISIBLE);
+                    webView.scheduleFit();
                 }
 
                 hideSystemBars();
@@ -975,10 +997,36 @@ public class MainActivity extends Activity {
         timeoutLabel.setTextColor(Color.BLACK);
         timeoutLabel.setPadding(0, 30, 0, 12);
 
+        TextView fitModeLabel = new TextView(this);
+        fitModeLabel.setText("Page fitting");
+        fitModeLabel.setTextColor(Color.BLACK);
+        fitModeLabel.setPadding(0, 30, 0, 12);
+
+        RadioGroup fitModeGroup = new RadioGroup(this);
+        fitModeGroup.setOrientation(RadioGroup.VERTICAL);
+
+        RadioButton fitWidthButton = new RadioButton(this);
+        fitWidthButton.setId(View.generateViewId());
+        fitWidthButton.setText("Fit width (vertical scrolling)");
+
+        RadioButton fitEntirePageButton = new RadioButton(this);
+        fitEntirePageButton.setId(View.generateViewId());
+        fitEntirePageButton.setText("Fit entire page");
+
+        fitModeGroup.addView(fitWidthButton);
+        fitModeGroup.addView(fitEntirePageButton);
+        if (getSavedFitMode() == FitToWindow.Mode.FIT_ENTIRE_PAGE) {
+            fitEntirePageButton.setChecked(true);
+        } else {
+            fitWidthButton.setChecked(true);
+        }
+
         dialogLayout.addView(info);
         dialogLayout.addView(input);
         dialogLayout.addView(timeoutLabel);
         dialogLayout.addView(timeoutInput);
+        dialogLayout.addView(fitModeLabel);
+        dialogLayout.addView(fitModeGroup);
         scrollView.addView(dialogLayout);
 
         AlertDialog dialog = new AlertDialog.Builder(this)
@@ -996,8 +1044,11 @@ public class MainActivity extends Activity {
             positive.setOnClickListener(v -> {
                 String raw = input.getText().toString().trim();
                 String rawTimeout = timeoutInput.getText().toString().trim();
+                FitToWindow.Mode selectedFitMode = fitEntirePageButton.isChecked()
+                        ? FitToWindow.Mode.FIT_ENTIRE_PAGE
+                        : FitToWindow.Mode.FIT_WIDTH;
 
-                if (startCandidateTest(raw, rawTimeout)) {
+                if (startCandidateTest(raw, rawTimeout, selectedFitMode)) {
                     hideKeyboard(input);
                     hideKeyboard(timeoutInput);
                     dialog.dismiss();
@@ -1065,7 +1116,11 @@ public class MainActivity extends Activity {
         }
     }
 
-    private boolean startCandidateTest(String rawAddress, String rawTimeoutMinutes) {
+    private boolean startCandidateTest(
+            String rawAddress,
+            String rawTimeoutMinutes,
+            FitToWindow.Mode fitMode
+    ) {
         Candidate candidate = validateAndNormalize(rawAddress);
         if (candidate == null) return false;
 
@@ -1073,6 +1128,8 @@ public class MainActivity extends Activity {
         if (timeoutMinutes == null) return false;
 
         saveScreensaverTimeoutMinutes(timeoutMinutes);
+        saveFitMode(fitMode);
+        webView.setFitMode(fitMode);
         pendingRawAddress = candidate.rawToSave;
         pendingUrl = candidate.urlToLoad;
         loadPendingAddress();
@@ -1305,6 +1362,22 @@ public class MainActivity extends Activity {
             Log.d(TAG, "Loaded screensaver timeout minutes=" + screensaverTimeoutMinutes);
         }
         return screensaverTimeoutMinutes;
+    }
+
+    private void saveFitMode(FitToWindow.Mode mode) {
+        FitToWindow.Mode normalized = mode == null ? FitToWindow.Mode.FIT_WIDTH : mode;
+        String stored = normalized == FitToWindow.Mode.FIT_ENTIRE_PAGE
+                ? FIT_MODE_ENTIRE_PAGE
+                : FIT_MODE_WIDTH;
+        getPrefs().edit().putString(KEY_FIT_MODE, stored).apply();
+        Log.d(TAG, "Saved fit mode=" + stored);
+    }
+
+    private FitToWindow.Mode getSavedFitMode() {
+        String stored = getPrefs().getString(KEY_FIT_MODE, FIT_MODE_WIDTH);
+        return FIT_MODE_ENTIRE_PAGE.equals(stored)
+                ? FitToWindow.Mode.FIT_ENTIRE_PAGE
+                : FitToWindow.Mode.FIT_WIDTH;
     }
 
     private long getScreensaverTimeoutMs() {
