@@ -29,6 +29,7 @@ import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.ConsoleMessage;
+import android.webkit.HttpAuthHandler;
 import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
 import android.webkit.ValueCallback;
@@ -93,6 +94,7 @@ public class MainActivity extends Activity {
     private View fullscreenView = null;
     private WebChromeClient.CustomViewCallback fullscreenCallback = null;
     private ValueCallback<Uri[]> filePathCallback = null;
+    private AlertDialog httpAuthDialog = null;
     private int originalSystemUiVisibility;
     private boolean webFullscreenActive = false;
 
@@ -724,9 +726,23 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onReceivedHttpAuthRequest(
+                    WebView view,
+                    HttpAuthHandler handler,
+                    String host,
+                    String realm
+            ) {
+                showHttpAuthDialog(handler, host, realm);
+            }
+
+            @Override
             public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && request != null && request.isForMainFrame()) {
                     int code = errorResponse != null ? errorResponse.getStatusCode() : 0;
+                    if (code == 401) {
+                        Log.d(TAG, "HTTP authentication requested for " + request.getUrl());
+                        return;
+                    }
                     if (code >= 400) {
                         mainFrameFailed = true;
                         pendingRawAddress = null;
@@ -949,6 +965,125 @@ public class MainActivity extends Activity {
             imm.hideSoftInputFromWindow(input.getWindowToken(), 0);
         }
         input.clearFocus();
+    }
+
+    private void showHttpAuthDialog(HttpAuthHandler handler, String host, String realm) {
+        if (handler == null) return;
+
+        if (isFinishing() || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && isDestroyed())) {
+            handler.cancel();
+            return;
+        }
+
+        if (httpAuthDialog != null && httpAuthDialog.isShowing()) {
+            handler.cancel();
+            return;
+        }
+
+        EditText usernameInput = new EditText(this);
+        usernameInput.setSingleLine(true);
+        usernameInput.setHint("Username");
+        usernameInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_NORMAL);
+        usernameInput.setImeOptions(EditorInfo.IME_ACTION_NEXT);
+
+        EditText passwordInput = new EditText(this);
+        passwordInput.setSingleLine(true);
+        passwordInput.setHint("Password");
+        passwordInput.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        passwordInput.setImeOptions(EditorInfo.IME_ACTION_DONE);
+
+        LinearLayout authLayout = new LinearLayout(this);
+        authLayout.setOrientation(LinearLayout.VERTICAL);
+        authLayout.setPadding(40, 24, 40, 8);
+
+        TextView authInfo = new TextView(this);
+        String normalizedHost = host == null || host.trim().length() == 0
+                ? "this website"
+                : host.trim();
+        String normalizedRealm = realm == null ? "" : realm.trim();
+        authInfo.setText(normalizedRealm.length() == 0
+                ? "Sign in to " + normalizedHost
+                : "Sign in to " + normalizedHost + "\n" + normalizedRealm);
+        authInfo.setTextColor(Color.BLACK);
+        authInfo.setPadding(0, 0, 0, 16);
+
+        authLayout.addView(authInfo);
+        authLayout.addView(usernameInput);
+        authLayout.addView(passwordInput);
+
+        final boolean[] resolved = {false};
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Authentication required")
+                .setView(authLayout)
+                .setCancelable(true)
+                .setPositiveButton("Sign in", null)
+                .setNegativeButton("Cancel", (d, which) -> {
+                    resolved[0] = true;
+                    handler.cancel();
+                    mainFrameFailed = true;
+                    pendingRawAddress = null;
+                    pendingUrl = null;
+                    showErrorScreen("Authentication cancelled.");
+                })
+                .create();
+
+        httpAuthDialog = dialog;
+        dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnShowListener(d -> {
+            Button signInButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            signInButton.setOnClickListener(v -> {
+                String username = usernameInput.getText().toString();
+                String password = passwordInput.getText().toString();
+                if (username.trim().length() == 0) {
+                    Toast.makeText(this, "Username is required", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                resolved[0] = true;
+                hideKeyboard(usernameInput);
+                hideKeyboard(passwordInput);
+                handler.proceed(username, password);
+                dialog.dismiss();
+            });
+
+            passwordInput.setOnEditorActionListener((v, actionId, event) -> {
+                boolean enterPressed = event != null
+                        && event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                        && event.getAction() == KeyEvent.ACTION_DOWN;
+                if (actionId == EditorInfo.IME_ACTION_DONE || enterPressed) {
+                    signInButton.performClick();
+                    return true;
+                }
+                return false;
+            });
+
+            usernameInput.requestFocus();
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                usernameInput.postDelayed(
+                        () -> imm.showSoftInput(usernameInput, InputMethodManager.SHOW_IMPLICIT),
+                        200
+                );
+            }
+        });
+
+        dialog.setOnCancelListener(d -> {
+            if (!resolved[0]) {
+                resolved[0] = true;
+                handler.cancel();
+                mainFrameFailed = true;
+                pendingRawAddress = null;
+                pendingUrl = null;
+                showErrorScreen("Authentication cancelled.");
+            }
+        });
+        dialog.setOnDismissListener(d -> {
+            if (httpAuthDialog == dialog) {
+                httpAuthDialog = null;
+            }
+            hideSystemBars();
+        });
+        dialog.show();
     }
 
     private void showAddressDialog(boolean firstStart) {
